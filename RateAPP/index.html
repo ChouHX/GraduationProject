@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title></title>
+	<link rel="stylesheet" href="bootstrap-5.3.0-alpha1-dist/css/bootstrap.min.css">
+	<script src="bootstrap-5.3.0-alpha1-dist/js/bootstrap.bundle.min.js"></script>
+	<script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <script type="text/javascript">
+   		document.addEventListener('plusready', function(){
+   			//console.log("所有plus api都应该在此事件发生后调用，否则会出现plus is undefined。")
+   		});
+    </script>
+</head>
+<style>
+	*{
+		margin: 0;
+		padding: 0;
+	}
+	img{
+		width: 1.875rem;
+		height: 1.875rem;
+	}
+	div{
+		height: 100px;
+	}
+	td{
+		font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+	}
+</style>
+<body>
+	<table class="table text-center">
+	  <caption class="text-center">小小智能家居</caption>
+	  <thead>
+	    <tr>
+	      <th class="bg-primary text-white">Topic</th>
+	      <th class="bg-primary text-white">Value</th>
+		  <th class="bg-primary text-white">LastTime</th>
+	    </tr>
+	  </thead>
+	  <tbody>
+	    <tr>
+	      
+		  <td>血氧</td>
+		  <td class="spo">0</td>
+		  <td class="spotime">time</td>
+	    </tr>
+	    <tr>
+	      <td>心率</td>
+	      <td class="heartrate">0</td>
+	      <td class="heartratetime">time</td>
+	    </tr>
+		<tr>
+		  <td>温度</td>
+		  <td class="temp">0</td>
+		  <td class="temptime">time</td>
+		</tr>
+		<tr>
+		  <td>湿度</td>
+		  <td class="humi">0</td>
+		  <td class="humitime">time</td>
+		</tr>
+		<tr>
+		  <td>水滴</td>
+		  <td class="water">0</td>
+		  <td class="watertime">time</td>
+		</tr>
+		<tr>
+		  <td>HomeMsg</td>
+		  <td class="HomeMsg">0</td>
+		  <td class="HomeMsgtime">time</td>
+		</tr>
+	  </tbody>
+	</table>
+	<table class="table text-center">
+	  <thead>
+	    <tr>
+	      <th class="bg-primary text-white">Topic</th>
+	      <th class="bg-primary text-white">Status</th>
+		  <th class="bg-primary text-white">Switch</th>
+	    </tr>
+	  </thead>
+	  <tbody>
+	    <tr>
+		  <td>门锁</td>
+		  <td id="lock">0</td>
+		  <td>
+			  <button id="lockSw" type="button" class="btn btn-danger btn-sm" onclick="ChangeStatus(this)">off</button>
+		  </td>
+	    </tr>
+		<tr>
+		  <td>Led</td>
+		  <td id="led">0</td>
+		  <td>
+			<button id="ledSw" type="button" class="btn btn-danger btn-sm" onclick="ChangeStatus(this)">on</button>
+		  </td>
+		</tr>
+	  </tbody>
+	</table>
+	<div class="text-center">
+			<button id="btn" class="btn btn-success text-white text-center m-auto">Stop</button>
+	</div>
+	<div class="container text-center">
+	    <label for="MqttTopic" class="form-label">Topic</label>
+	    <input type="text" class="form-control w-75 m-auto" id="MqttTopic" aria-describedby="emailHelp">
+	    <label for="MqttMsg" class="form-label">Message</label>
+	    <input type="text" class="form-control w-75 m-auto" id="MqttMsg">
+		<br>
+	  <button type="button" class="btn btn-primary align-items-center" id="MsgSubmit" onclick="SendMsg()">Submit</button>
+	</div>
+</body>
+<script src="js/index.js"></script>
+<script>
+	//设置定时器,每秒循环一次
+	var timer = setInterval(TaskLists,1000);
+	//点击按钮清除定时器
+	var btn = document.getElementById("btn");
+	var flag = true;
+	btn.onclick = function () {
+		 if (flag == true) {
+			clearInterval(timer);
+			btn.classList.remove("btn-success");
+			btn.classList.add("btn-warning");
+			$("#btn").text("Run");
+			flag = false;
+		 } else{
+			timer = setInterval(TaskLists,1000);
+			btn.classList.remove("btn-warning");
+			btn.classList.add("btn-success");
+			$("#btn").text("Stop");
+			flag = true;
+		 }
+		 
+	 }
+
+  </script>
+</html>
