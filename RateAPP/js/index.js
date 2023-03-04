@@ -33,7 +33,7 @@ function GetStatus(topic,name){
 			// console.log('Output: ', out);
 			var text = `${out.data[0].msg}`
 			$(name).text(text);
-			$(name + "Sw").text(text);
+			$(name + "Switch").text(text);
 	}).catch(err => console.error(err));
 }
 function ChangeStatus(element){
@@ -42,11 +42,11 @@ function ChangeStatus(element){
 	if ($("#"+element.id).text() == "on") {
 		document.getElementById(element.id).classList.remove("btn-primary");
 		document.getElementById(element.id).classList.add("btn-danger");
-		PushMsg(str.slice(0,-2),"off");
+		PushMsg(str,"off");
 	} else{
 		document.getElementById(element.id).classList.remove("btn-danger");
 		document.getElementById(element.id).classList.add("btn-primary");
-		PushMsg(str.slice(0,-2),"on");
+		PushMsg(str,"on");
 	}
 }
 function SendMsg(){
@@ -63,6 +63,7 @@ var TaskLists = function () {
 	GetMsg("temp",".temp");
 	GetMsg("humi",".humi");
 	GetMsg("water",".water");
+	GetMsg("switchStatus",".switchStatus");
 	GetMsg("HomeMsg",".HomeMsg");
 	GetStatus("lock","#lock");
 	GetStatus("led","#led");

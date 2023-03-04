@@ -1,15 +1,8 @@
-/*****哔哩哔哩演示视频 https://www.bilibili.com/video/BV1jB4y1h7Jz?share_source=copy_web&vd_source=a87486ca7ecd0a754606aaf5b7b2b5ff 里面详细介绍了这个函数的用法****/
-#define BLINKER_WIFI
-
-#include "Blinker.h"              //注意添加这个点灯科技的头文件，这个文件GitHub地址：https://github.com/blinker-iot/blinker-library.git
 #include <ESP8266WiFi.h>                //默认，加载WIFI头文件
 #include "PubSubClient.h"               //默认，加载MQTT库文件
 #include "stdio.h"                //这个头文件是用来使用sprint函数的
-#include "Arduino.h"              //如果使用Arduino IDE的话，需要删除这行代码
 #include "SoftwareSerial.h"       //注意添加这个软串口头文件
 #include <Servo.h>
-#include <DHT.h>
-char auth[] = "64d96e8b4f62";   //点灯科技的项目密钥
 char ssid[] = "501-2.4G";   //WiFi账号
 char pswd[] = "123456a.";   //WiFi密码
 //-------------巴法云配置--------------
@@ -23,28 +16,8 @@ unsigned long lastMsg = 0;              //计时
 boolean LockStatus = false; //门锁状态
 const char*  Lockmsg = "off";
 //---------------------------------
-//----------温湿度传感器配置--------------
-#define DHTPIN 2  //接的是GPIO2端口
-#define DHTTYPE DHT11   // DHT 11
-//#define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
-//#define DHTTYPE DHT21   // DHT 21 (AM2301)
-DHT dht(DHTPIN, DHTTYPE);
-float humi_read = 0, temp_read = 0;
-//-------------
 Servo myservo;
-
 SoftwareSerial mySerial(4,5);    //软串口引脚，RX：GPIO4    TX：GPIO5  Touch: GPIO14
-
-BlinkerButton Button_OneEnroll("OneEnroll");    //单次注册按钮
-BlinkerButton Button_Delete("Delete");          //删除指纹按钮
-BlinkerButton Button_Identify("Identify");      //搜索模式按钮
-BlinkerButton Button_Empty("Empty");            //清空指纹按钮
-BlinkerButton Button_MultEnroll("MultEnroll");  //连接注册按钮
-BlinkerButton Button_Reset("Reset");            //复位模块按钮
-BlinkerButton Button_ON("ON");                  //手动开启继电器按钮
-BlinkerButton Button_OFF("OFF");                //手动关闭继电器按钮
-BlinkerNumber TEMP("temp");              //温度组件
-BlinkerNumber HUMI("humi");              //湿度组件
 
 char str[20];    //用于sprint函数的临时数组
 int SearchID,EnrollID;    //搜索指纹的ID号和注册指纹的ID号
@@ -54,48 +27,112 @@ uint8_t PS_ReceiveBuffer[20];   //串口接收数据的临时缓冲数组
 
 //休眠协议
 uint8_t PS_SleepBuffer[12] = {0xEF,0x01,0xFF,0xFF,0xFF,0xFF,0x01,0x00,0x03,0x33,0x00,0x37};
-
 //清空指纹协议
 uint8_t PS_EmptyBuffer[12] = {0xEF,0x01,0xFF,0xFF,0xFF,0xFF,0x01,0x00,0x03,0x0D,0x00,0x11};
-
 //获取图像协议
 uint8_t PS_GetImageBuffer[12] = {0xEF,0x01,0xFF,0xFF,0xFF,0xFF,0x01,0x00,0x03,0x01,0x00,0x05};
-
 //取消命令协议
 uint8_t PS_CancelBuffer[12] = {0xEF,0x01,0xFF,0xFF,0xFF,0xFF,0x01,0x00,0x03,0x30,0x00,0x34};
-
 //生成模块协议
 uint8_t PS_GetChar1Buffer[13] = {0xEF,0x01,0xFF,0xFF,0xFF,0xFF,0x01,0x00,0x04,0x02,0x01,0x00,0x08};
 uint8_t PS_GetChar2Buffer[13] = {0xEF,0x01,0xFF,0xFF,0xFF,0xFF,0x01,0x00,0x04,0x02,0x02,0x00,0x09};
-
 //RGB颜色控制协议
 uint8_t PS_BlueLEDBuffer[16] = {0xEF,0x01,0xFF,0xFF,0xFF,0xFF,0x01,0x00,0x07,0x3C,0x03,0x01,0x01,0x00,0x00,0x49};
 uint8_t PS_RedLEDBuffer[16] = {0xEF,0x01,0xFF,0xFF,0xFF,0xFF,0x01,0x00,0x07,0x3C,0x02,0x04,0x04,0x02,0x00,0x50};
 uint8_t PS_GreenLEDBuffer[16] = {0xEF,0x01,0xFF,0xFF,0xFF,0xFF,0x01,0x00,0x07,0x3C,0x02,0x02,0x02,0x02,0x00,0x4C};
-
 //搜索指纹协议
 uint8_t PS_SearchMBBuffer[17] = {0xEF,0x01,0xFF,0xFF,0xFF,0xFF,0x01,0x00,0x08,0x04,0x01,0x00,0x00,0xFF,0xFF,0x02,0x0C};
-
 //自动注册指纹协议
 uint8_t PS_AutoEnrollBuffer[17] = {0xEF,0x01,0xFF,0xFF,0xFF,0xFF,0x01,0x00,0x08,0x31,'\0','\0',0x04,0x00,0x16,'\0','\0'}; //PageID: bit 10:11，SUM: bit 15:16
-
 //删除指纹协议
 uint8_t PS_DeleteBuffer[16] = {0xEF,0x01,0xFF,0xFF,0xFF,0xFF,0x01,0x00,0x07,0x0C,'\0','\0',0x00,0x01,'\0','\0'}; //PageID: bit 10:11，SUM: bit 14:15
-
 //----------------MQTT------------------------
-
-void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Topic:");//topic消息接收
-  Serial.println(topic);
+//消息接收
+void MsgCallback(char* topic, byte* payload, unsigned int length) {
   String msg = "";
-  for (int i = 0; i < length; i++) {
+  for(int i=0;i<length;i++){
     msg += (char)payload[i];
   }
-  Serial.print("Msg:");
-  Serial.println(msg);
-  msg = "";
+  if (msg == "on") {
+    LockStatus = true;
+    pubclient.publish("switchStatus","开");
+  }else if (msg == "off") {
+    LockStatus = false;
+    pubclient.publish("switchStatus","关");
+  }else if (msg == "register") {
+    //单次注册
+    // ScanState |= 1<<2;
+    ScanState = 0x16;
+    pubclient.publish("switchStatus","请重复按下手指直至绿灯");
+  }else if (msg == "clear") {
+    //清空指纹
+    PageID = 0;
+    if(PS_Empty() == 0x00)
+    {
+      PS_ControlLED(PS_GreenLEDBuffer);
+    }
+    else
+    {
+      PS_ControlLED(PS_RedLEDBuffer);
+    }
+    pubclient.publish("switchStatus","指纹已清空");
+  }else if(msg == "cancel"){
+    PS_Cancel();
+    pubclient.publish("switchStatus","取消注册");
+  }
+  // switch (choice)
+  // {
+  // case 0: //关
+  //   LockStatus = false;
+  //   break;
+  // case 1: //开
+  //   LockStatus = true;
+  //   break;
+  // case 2: //复位
+  //   PS_Cancel();
+  //   delay(500);
+  //   PS_Sleep();
+  //   attachInterrupt(digitalPinToInterrupt(14),InterruptFun,RISING);
+  //   break;
+  // case 3: //连续注册
+  //   ScanState |= 0x01;
+  //   break;
+  // case 4: //清空指纹
+  //   PageID = 0;
+  //   if(PS_Empty() == 0x00)
+  //   {
+  //     PS_ControlLED(PS_GreenLEDBuffer);
+  //   }
+  //   else
+  //   {
+  //     PS_ControlLED(PS_RedLEDBuffer);
+  //   }
+  //   break;
+  // case 5: //单次注册
+  //   ScanState |= 1<<2;
+  //   break;
+  // default:
+  //   break;
+  // }
 }
+//wifi初始化
+void setup_wifi() {
+  delay(10);
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
 
+  WiFi.begin(ssid, pswd);  //连接wifi
+
+  while (WiFi.status() != WL_CONNECTED) { //等待wifi连接
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+}
 void reconnect() {
   // Loop until we're reconnected
   while (!pubclient.connected()) {
@@ -112,16 +149,12 @@ void reconnect() {
     }
   }
 }
-
 //----------------------------------------
 
 /**
   * @file    FPM383C.cpp
   * @brief   用在中断里面的延时函数
   * @param   ms：需要延时的毫秒数
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 void delay_ms(long int ms)
 {
@@ -137,9 +170,6 @@ void delay_ms(long int ms)
   * @brief   串口发送函数
   * @param   len: 发送数组长度
   * @param   PS_Databuffer[]: 需要发送的功能协议数组，在上面已有定义
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 void FPM383C_SendData(int len,uint8_t PS_Databuffer[])
 {
@@ -152,9 +182,6 @@ void FPM383C_SendData(int len,uint8_t PS_Databuffer[])
   * @file    FPM383C.cpp
   * @brief   串口接收函数
   * @param   Timeout：接收超时时间
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 void FPM383C_ReceiveData(uint16_t Timeout)
 {
@@ -177,8 +204,6 @@ void FPM383C_ReceiveData(uint16_t Timeout)
   * @brief   休眠函数，只有发送休眠后，模块的TOUCHOUT引脚才会变成低电平
   * @param   None
   * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 void PS_Sleep()
 {
@@ -190,9 +215,6 @@ void PS_Sleep()
   * @file    FPM383C.cpp
   * @brief   模块LED灯控制函数
   * @param   PS_ControlLEDBuffer[]：需要设置颜色的协议，一般定义在上面
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 void PS_ControlLED(uint8_t PS_ControlLEDBuffer[])
 {
@@ -205,8 +227,6 @@ void PS_ControlLED(uint8_t PS_ControlLEDBuffer[])
   * @brief   模块任务取消操作函数，如发送了注册指纹命令，但是不想注册了，需要发送此函数
   * @param   None
   * @return  应答包第9位确认码或者无效值0xFF
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 uint8_t PS_Cancel()
 {
@@ -221,8 +241,6 @@ uint8_t PS_Cancel()
   * @brief   模块获取搜索指纹用的图像函数
   * @param   None
   * @return  应答包第9位确认码或者无效值0xFF
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 uint8_t PS_GetImage()
 {
@@ -237,8 +255,6 @@ uint8_t PS_GetImage()
   * @brief   模块获取图像后生成特征，存储到缓冲区1
   * @param   None
   * @return  应答包第9位确认码或者无效值0xFF
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 uint8_t PS_GetChar1()
 {
@@ -253,8 +269,6 @@ uint8_t PS_GetChar1()
   * @brief   生成特征，存储到缓冲区2
   * @param   None
   * @return  应答包第9位确认码或者无效值0xFF
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 uint8_t PS_GetChar2()
 {
@@ -269,8 +283,6 @@ uint8_t PS_GetChar2()
   * @brief   搜索指纹模板函数
   * @param   None
   * @return  应答包第9位确认码或者无效值0xFF
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 uint8_t PS_SearchMB()
 {
@@ -285,8 +297,6 @@ uint8_t PS_SearchMB()
   * @brief   清空指纹模板函数
   * @param   None
   * @return  应答包第9位确认码或者无效值0xFF
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 uint8_t PS_Empty()
 {
@@ -301,8 +311,6 @@ uint8_t PS_Empty()
   * @brief   自动注册指纹模板函数
   * @param   PageID：注册指纹的ID号，取值0 - 59
   * @return  应答包第9位确认码或者无效值0xFF
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 uint8_t PS_AutoEnroll(uint16_t PageID)
 {
@@ -314,15 +322,11 @@ uint8_t PS_AutoEnroll(uint16_t PageID)
   FPM383C_ReceiveData(10000);
   return PS_ReceiveBuffer[6] == 0x07 ? PS_ReceiveBuffer[9] : 0xFF;
 }
-
-
 /**
   * @file    FPM383C.cpp
   * @brief   删除指定指纹模板函数
   * @param   PageID：需要删除的指纹ID号，取值0 - 59
   * @return  应答包第9位确认码或者无效值0xFF
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 uint8_t PS_Delete(uint16_t PageID)
 {
@@ -334,15 +338,11 @@ uint8_t PS_Delete(uint16_t PageID)
   FPM383C_ReceiveData(2000);
   return PS_ReceiveBuffer[6] == 0x07 ? PS_ReceiveBuffer[9] : 0xFF;
 }
-
-
 /**
   * @file    FPM383C.cpp
   * @brief   二次封装自动注册指纹函数，实现注册成功闪烁两次绿灯，失败闪烁两次红灯
   * @param   PageID：注册指纹的ID号，取值0 - 59
   * @return  应答包第9位确认码或者无效值0xFF
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 /*，返回应答包的位9确认码。*/
 uint8_t PS_Enroll(uint16_t PageID)
@@ -360,10 +360,7 @@ uint8_t PS_Enroll(uint16_t PageID)
 /**
   * @file    FPM383C.cpp
   * @brief   分步式命令搜索指纹函数
-  * @param   None
   * @return  应答包第9位确认码或者无效值0xFF
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 uint8_t PS_Identify()
 {
@@ -391,9 +388,6 @@ uint8_t PS_Identify()
   * @file    FPM383C.cpp
   * @brief   搜索指纹后的应答包校验，在此执行相应的功能，如开关继电器、开关灯等等功能
   * @param   ACK：各个功能函数返回的应答包
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 void SEARCH_ACK_CHECK(uint8_t ACK)
 {
@@ -404,7 +398,7 @@ void SEARCH_ACK_CHECK(uint8_t ACK)
 			case 0x00:                          //指令正确
         SearchID = (int)((PS_ReceiveBuffer[10] << 8) + PS_ReceiveBuffer[11]);
         sprintf(str,"Now Search ID: %d",(int)SearchID);
-        Blinker.notify(str);
+        Serial.println(str);
         if(SearchID == 0) WiFi_Connected_State = 0;
         LockStatus = !LockStatus;
         digitalWrite(12,!digitalRead(12));
@@ -420,9 +414,6 @@ void SEARCH_ACK_CHECK(uint8_t ACK)
   * @file    FPM383C.cpp
   * @brief   注册指纹后返回的应答包校验
   * @param   ACK：注册指纹函数返回的应答包
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 void ENROLL_ACK_CHECK(uint8_t ACK)
 {
@@ -433,7 +424,7 @@ void ENROLL_ACK_CHECK(uint8_t ACK)
 			case 0x00:                          //指令正确
         EnrollID = (int)((PS_AutoEnrollBuffer[10] << 8) + PS_AutoEnrollBuffer[11]);
         sprintf(str,"Now Enroll ID: %d",(int)EnrollID);
-        Blinker.notify(str);
+        Serial.println(str);
 				break;
 		}
 	}
@@ -444,10 +435,6 @@ void ENROLL_ACK_CHECK(uint8_t ACK)
 /**
   * @file    FPM383C.cpp
   * @brief   外部中断函数，触发中断后开启模块的LED蓝灯（代表正在扫描指纹），接着由搜索指纹函数修改成功（闪烁绿灯）或失败（闪烁红灯）
-  * @param   None
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 ICACHE_RAM_ATTR void InterruptFun()
 {
@@ -460,256 +447,49 @@ ICACHE_RAM_ATTR void InterruptFun()
 
 /**
   * @file    FPM383C.cpp
-  * @brief   点灯科技APP里面的 “ 单次注册 “ 按键
-  * @param   Unknown
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
-  */
-void OneEnroll_callback(const String & state)
-{
-  Blinker.vibrate(500); 
-  ScanState |= 1<<2;
-  Blinker.notify("OneEnroll Fingerprint");
-}
-
-
-/**
-  * @file    FPM383C.cpp
-  * @brief   点灯科技APP里面的 “ 删除指纹 “ 按键
-  * @param   Unknown
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
-  */
-void Delete_callback(const String & state)
-{
-  Blinker.vibrate(500);
-  ScanState |= 1<<3;
-  Blinker.notify("Delete Fingerprint");
-}
-
-
-/**
-  * @file    FPM383C.cpp
-  * @brief   点灯科技APP里面的 “ 搜索模式 “ 按键
-  * @param   Unknown
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
-  */
-void Identify_callback(const String & state)
-{
-  Blinker.vibrate(500);
-  ScanState &= ~(1<<0);
-  Blinker.notify("MultSearch Fingerprint");
-}
-
-
-/**
-  * @file    FPM383C.cpp
-  * @brief   点灯科技APP里面的 “ 清空指纹 “ 按键
-  * @param   Unknown
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
-  */
-void Empty_callback(const String & state)
-{
-  PageID = 0;
-  Blinker.vibrate(500);
-  Blinker.notify("Empty Fingerprint");
-  if(PS_Empty() == 0x00)
-  {
-    PS_ControlLED(PS_GreenLEDBuffer);
-  }
-  else
-  {
-    PS_ControlLED(PS_RedLEDBuffer);
-  }
-}
-
-
-/**
-  * @file    FPM383C.cpp
-  * @brief   点灯科技APP里面的 “ 连续注册 “ 按键
-  * @param   Unknown
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
-  */
-void MultEnroll_callback(const String & state)
-{
-  Blinker.vibrate(500);
-  ScanState |= 0x01;
-  Blinker.notify("MultEnroll Fingerprint");
-}
-
-
-/**
-  * @file    FPM383C.cpp
-  * @brief   点灯科技APP里面的 “ 复位模块 “ 按键
-  * @param   Unknown
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
-  */
-void Reset_callback(const String & state)
-{
-  Blinker.vibrate(500);
-  Blinker.notify("Reset Fingerprint");
-  PS_Cancel();
-  delay(500);
-  PS_Sleep();
-  attachInterrupt(digitalPinToInterrupt(14),InterruptFun,RISING);
-}
-
-
-/**
-  * @file    FPM383C.cpp
-  * @brief   点灯科技APP里面的 “ 手动开启 “ 按键
-  * @param   Unknown
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
-  */
-void ON_callback(const String & state)
-{
-  Blinker.vibrate(500);
-  Blinker.notify("ON Relay");
-  digitalWrite(12,HIGH);
-  LockStatus = true;
-}
-
-
-/**
-  * @file    FPM383C.cpp
-  * @brief   点灯科技APP里面的 “ 手动关闭 “ 按键
-  * @param   Unknown
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
-  */
-void OFF_callback(const String & state)
-{
-  Blinker.vibrate(500);
-  Blinker.notify("OFF Relay");
-  digitalWrite(12,LOW);
-  LockStatus = false;
-}
-
-
-/**
-  * @file    FPM383C.cpp
-  * @brief   点灯科技APP里面的 “ 对话框 “ 
-  * @param   Unknown
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
-  */
-void DataRead(const String & data)
-{
-  PageID = data.toInt();
-  ScanState |= 1<<1;
-}
-
-/**
-  * @file    FPM383C.cpp
-  * @brief   读取温湿度显示 
-  * @param   Unknown
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
-  */
-// void heartbeat()
-// {
-//   //反馈温度数据
-//     HUMI.print(humi_read);
-//     //反馈湿度数据
-//     TEMP.print(temp_read);
-// }
-
-/**
-  * @file    FPM383C.cpp
   * @brief   初始化主函数
-  * @param   None
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
   */
 void setup()
 {  
   mySerial.begin(57600);                              //软串口波特率，默认FPM383C指纹模块的57600
-
   pinMode(2,OUTPUT);                                  //ESP8266，Builtin LED内置的灯引脚模式
   pinMode(12,OUTPUT);                                 //继电器输出引脚
   pinMode(14,INPUT);                                  //FPM383C的2脚TouchOUT引脚，用于外部中断
-  // dht.begin();
-  Blinker.begin(auth, ssid, pswd);
-  Blinker.attachData(DataRead);
-  // Blinker.attachHeartbeat(heartbeat);
-  Button_OneEnroll.attach(OneEnroll_callback);
-  Button_Delete.attach(Delete_callback);
-  Button_Identify.attach(Identify_callback);
-  Button_Empty.attach(Empty_callback);
-  Button_MultEnroll.attach(MultEnroll_callback);
-  Button_Reset.attach(Reset_callback);
-  Button_ON.attach(ON_callback);
-  Button_OFF.attach(OFF_callback);
-  myservo.attach(16, 500, 2500); 
+  setup_wifi();
   pubclient.setServer(mqtt_server,mqtt_server_port);
-  pubclient.setCallback(callback);
+  if(pubclient.connect(ID_MQTT)){
+    pubclient.subscribe("lockSwitch");
+    pubclient.setCallback(MsgCallback);
+  }else{
+    Serial.println("connection failed");
+  }
+  myservo.attach(16, 500, 2500); 
   delay_ms(200);                                      //用于FPM383C模块启动延时，不可去掉
   PS_Sleep();
   delay_ms(200);
-
   attachInterrupt(digitalPinToInterrupt(14),InterruptFun,RISING);     //外部中断初始化
 }
 
 
-/**
-  * @file    FPM383C.cpp
-  * @brief   主循环函数
-  * @param   Unknown
-  * @return  None
-  * @version v1.0.0
-  * @date    2022-08-10
-  */
+
 void loop()
 {
-  if (LockStatus == true) {
+  if (LockStatus){
     myservo.write(0);
     Lockmsg = "on";
   }else{
     myservo.write(180);
     Lockmsg = "off";
-
-  }
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
-
-  if (isnan(h) || isnan(t))
-  {
-      BLINKER_LOG("Failed to read from DHT sensor!");
-  }
-  else
-  {
-      BLINKER_LOG("Humidity: ", h, " %");
-      BLINKER_LOG("Temperature: ", t, " *C");
-      humi_read = h;
-      temp_read = t;
   }
   if (!pubclient.connected()) {
     reconnect();
   }
   pubclient.loop();
   
-  long now = millis();
-  if (now - lastMsg > 3000) {//3秒推送一次
+  long now = millis();//获取当前时间戳
+  if (now - lastMsg > 1000) {//如果达到1s，进行数据上传
     lastMsg = now;
-    
-    pubclient.publish(topic, Lockmsg);
-    Serial.println("publish OK");
+    pubclient.publish(topic, Lockmsg);//数据上传
   }
   switch (ScanState)
   {
@@ -724,7 +504,7 @@ void loop()
 
     //第二步
     case 0x11:    //指纹中断提醒输入指纹ID，执行完毕返回搜索指纹模式
-        Blinker.notify("Please Enter ID First");
+        Serial.println("Please Enter ID First");
         PS_ControlLED(PS_RedLEDBuffer);
         delay(1000);
         PS_Sleep();
@@ -734,7 +514,7 @@ void loop()
     
     //第三步
     case 0x12:    //指纹中断提醒按下功能按键，执行完毕返回搜索指纹模式
-        Blinker.notify("Please Press Enroll or Delete Key");
+        Serial.println("Please Press Enroll or Delete Key");
         PS_ControlLED(PS_RedLEDBuffer);
         delay(1000);
         PS_Sleep();
@@ -774,7 +554,7 @@ void loop()
     case 0x0A:    //单独指纹删除模式
         if(PS_Delete(PageID) == 0x00)
         {
-          Blinker.notify("Delete Success");
+          Serial.println("Delete Success");
           PS_ControlLED(PS_GreenLEDBuffer);
         }
         ScanState = 0x00;
@@ -783,7 +563,7 @@ void loop()
     default:    //输入错误次数大于等于5次，将重新开启WiFI功能。
         if(WiFi_Connected_State == 0 || ErrorNum >= 5)
         {
-          Blinker.run(); 
+          reconnect();
         }
     break;
   }

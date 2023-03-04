@@ -25,15 +25,21 @@ void setup() {
   Serial.begin(115200); //设定波特率为9600
   pinMode(led, OUTPUT); //定义led 为输出引脚
   setup_wifi();
-  client.setServer(mqtt_server, mqtt_server_port);
-  client.setCallback(callback);
+  client.setServer(mqtt_server,mqtt_server_port);
+  if(client.connect(ID_MQTT)){
+    client.subscribe("water");
+    client.subscribe("lockSwitch");
+    client.setCallback(MsgCallback);
+  }else{
+    Serial.println("connection failed");
+  }
 }
 
 void loop() {
-  if (!client.connected()) {//判断mqtt是否连接
+  if(!client.connected()){
     reconnect();
   }
-  client.loop();//mqtt客户端
+  client.loop();
   val = analogRead(analogPin); //读取模拟值送给变量val
   if(val>500){ //判断变量val 是否大于700
   digitalWrite(led,HIGH); //变量val 大于700 时，点亮食人鱼灯
@@ -42,7 +48,6 @@ void loop() {
   digitalWrite(led,LOW); //变量val 小于700 时，熄灭食人鱼灯
   }
   data = val; //变量val 赋值给变量data
-  Serial.println(data); //串口打印变量data
   long now = millis();//获取当前时间戳
   if (now - lastMsg > timeval) {//如果达到3s，进行数据上传
     lastMsg = now;
@@ -70,15 +75,17 @@ void setup_wifi() {
   Serial.println(WiFi.localIP());
 }
 //消息接收
-void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Topic:");//topic消息接收
-  Serial.println(topic);
+void MsgCallback(char* topic, byte* payload, unsigned int length) {
+  // Serial.print(topic);
+  // Serial.print(":");
   String msg = "";
-  for (int i = 0; i < length; i++) {
+  for(int i=0;i<length;i++){
     msg += (char)payload[i];
   }
-  Serial.print("Msg:");
-  Serial.println(msg);
+  msg += topic;
+  if(msg == "onlockSwitch"){
+    Serial.println("lockon");
+  }
   msg = "";
 }
 //重新连接
