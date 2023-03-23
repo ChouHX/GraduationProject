@@ -63,6 +63,7 @@ void MsgCallback(char* topic, byte* payload, unsigned int length) {
     //单次注册
     // ScanState |= 1<<2;
     ScanState = 0x16;
+    PageID = PageID +1;
     pubclient.publish("switchStatus","请重复按下手指直至绿灯");
   }else if (msg == "clear") {
     //清空指纹
@@ -344,7 +345,6 @@ uint8_t PS_Delete(uint16_t PageID)
   * @param   PageID：注册指纹的ID号，取值0 - 59
   * @return  应答包第9位确认码或者无效值0xFF
   */
-/*，返回应答包的位9确认码。*/
 uint8_t PS_Enroll(uint16_t PageID)
 {
   if(PS_AutoEnroll(PageID) == 0x00)

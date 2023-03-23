@@ -41,7 +41,7 @@ void loop() {
   }
   client.loop();
   val = analogRead(analogPin); //读取模拟值送给变量val
-  if(val>500){ //判断变量val 是否大于700
+  if(val>300){ //判断变量val 是否大于700
   digitalWrite(led,HIGH); //变量val 大于700 时，点亮食人鱼灯
   }
   else{

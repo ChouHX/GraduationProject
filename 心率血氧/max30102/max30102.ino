@@ -32,8 +32,8 @@
 
 const char* ssid = "501-2.4G";  // Enter SSID here
 const char* password = "123456a.";  //Enter Password here
-const char*  topic1 = "HeartBeat";             //主题
-const char*  topic2 = "Spo2";
+const char*  topic1 = "hearttest";             //主题
+const char*  topic2 = "spotest";
 const char* mqtt_server = "bemfa.com";   //默认，MQTT服务器
 const int mqtt_server_port = 9501;       //默认，MQTT服务器端口
 #define ID_MQTT  "2205b187c6079ed1deda0d2b14ae2716"     //Client ID
